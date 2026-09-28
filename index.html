@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>아스라다 홈</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!--
+  아스라다 홈 — 텔레그램 미니앱. 서버 없이 동작한다.
+  봇(dashboard.py)이 버튼을 보낼 때 숫자를 JSON→zlib→base64url 로 URL '#' 뒤에 담는다.
+  '#' 뒤는 브라우저 밖으로 나가지 않으므로 이 페이지를 올린 곳엔 숫자가 남지 않는다.
+-->
+<style>
+  :root {
+    --bg: var(--tg-theme-secondary-bg-color, #f2f2f7);
+    --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+    --ink: var(--tg-theme-text-color, #1c1c1e);
+    --muted: var(--tg-theme-hint-color, #8e8e93);
+    --accent: var(--tg-theme-button-color, #2481cc);
+    --line: color-mix(in srgb, var(--muted) 25%, transparent);
+    --track: color-mix(in srgb, var(--muted) 18%, transparent);
+    /* 상태색: 아이콘+글자와 함께만 쓴다 */
+    --red: #d93a3a; --yellow: #d49a00; --green: #2e9d5b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  header { display: flex; align-items: baseline; justify-content: space-between; padding: 4px 4px 10px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 700; }
+  header .when { color: var(--muted); font-size: 13px; }
+  .stale { color: var(--yellow); }
+  section { background: var(--card); border-radius: 14px; padding: 14px; margin-bottom: 10px; }
+  section h2 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: .02em; }
+  .empty { color: var(--muted); font-size: 14px; }
+
+  /* 한 줄 요약 */
+  .today { font-size: 16px; font-weight: 600; }
+  .today small { display: block; font-weight: 400; color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+  /* 유튜브 */
+  .yt { padding: 10px 0; border-top: 1px solid var(--line); }
+  .yt:first-of-type { border-top: 0; padding-top: 0; }
+  .yt .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .yt .title { font-weight: 600; }
+  .yt .dday { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  .yt .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .badge { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; }
+  .badge.r { color: var(--red); } .badge.y { color: var(--yellow); } .badge.g { color: var(--green); }
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin-top: 8px; }
+  .steps div { height: 6px; background: var(--track); border-radius: 3px; }
+  .steps div.on { background: var(--accent); }
+  .steps-label { display: grid; grid-template-columns: repeat(5, 1fr); font-size: 10px; color: var(--muted); margin-top: 3px; text-align: center; }
+  .steps-label .cur { color: var(--ink); font-weight: 600; }
+
+  /* 리스트 */
+  .li { display: flex; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .li:first-of-type { border-top: 0; padding-top: 0; }
+  .li .at { color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; min-width: 92px; }
+
+  /* 숫자 타일 */
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+
+  /* 막대그래프 (단일 계열) */
+  .chart { position: relative; margin-top: 14px; }
+  .bars { display: flex; align-items: flex-end; gap: 2px; height: 90px; border-bottom: 1px solid var(--line); }
+  .bar { flex: 1; height: 100%; display: flex; align-items: flex-end; cursor: pointer; }
+  .bar i { display: block; width: 100%; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 0; opacity: .9; }
+  .bar.sel i, .bar:hover i { opacity: 1; outline: 2px solid var(--card); }
+  .bar.zero i { height: 2px !important; background: var(--track); }
+  .xlab { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+  .tip { position: absolute; top: -6px; transform: translate(-50%, -100%); background: var(--ink); color: var(--card);
+         font-size: 12px; padding: 4px 8px; border-radius: 6px; white-space: nowrap; pointer-events: none; display: none; }
+
+  /* 게이지 */
+  .gauge { height: 8px; background: var(--track); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .gauge i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .gauge.warn i { background: var(--yellow); }
+  .meta { display: flex; justify-content: space-between; font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  details { margin-top: 10px; font-size: 13px; }
+  summary { color: var(--muted); cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  td, th { text-align: right; padding: 3px 4px; border-bottom: 1px solid var(--line); font-weight: 400; }
+  td:first-child, th:first-child { text-align: left; }
+  th { color: var(--muted); }
+
+  .cat { margin-top: 8px; }
+  .cat .row { display: flex; justify-content: space-between; font-size: 14px; }
+  .cat .gauge i { background: var(--accent); }
+  .ok { color: var(--green); font-weight: 600; } .bad { color: var(--red); font-weight: 600; }
+  .foot { text-align: center; color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<header><h1>🏠 아스라다</h1><span class="when" id="when"></span></header>
+<main id="app"><section><p class="empty">불러오는 중…</p></section></main>
+<p class="foot" id="foot"></p>
+
+<script>
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num = (n) => Number(n || 0).toLocaleString("ko-KR");
+const STAGES = ["수령", "스크립트", "촬영", "편집", "업로드"];
+const LEVEL = { r: ["🔴", "서둘러야 함"], y: ["🟡", "여유 없음"], g: ["🟢", "여유 있음"] };
+
+async function decode(hash) {
+  const b64 = hash.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(b64 + "===".slice((b64.length + 3) % 4));
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+  return JSON.parse(await new Response(stream).text());
+}
+
+function dday(l) {
+  if (l == null) return "";
+  if (l === 0) return "D-DAY";
+  return l > 0 ? `D-${l}` : `D+${-l}`;
+}
+
+function secToday(d) {
+  const urgent = (d.yt || []).find((x) => x.c === "r") || (d.yt || [])[0];
+  const next = (d.rm || []).find((x) => !x.p);
+  let html = '<section><h2>오늘</h2>';
+  if (urgent) {
+    html += `<div class="today">${esc(urgent.n)} ${dday(urgent.l)}<small>지금 할 일: ${esc(urgent.todo)}</small></div>`;
+  } else {
+    html += '<div class="today">급한 영상 없음</div>';
+  }
+  if (next) html += `<div class="meta"><span>다음 알림</span><span>${esc(next.a)}</span></div>`;
+  return html + "</section>";
+}
+
+function secYoutube(yt) {
+  if (yt == null) return '<section><h2>유튜브 · small table</h2><p class="empty">불러오지 못했어요</p></section>';
+  if (!yt.length) return '<section><h2>유튜브 · small table</h2><p class="empty">진행 중인 영상이 없어요</p></section>';
+  const rows = yt.map((x) => {
+    const [ico, lab] = LEVEL[x.c] || LEVEL.g;
+    const steps = STAGES.map((_, i) => `<div class="${i <= x.si ? "on" : ""}"></div>`).join("");
+    const labels = STAGES.map((s, i) => `<span class="${i === x.si ? "cur" : ""}">${s}</span>`).join("");
+    return `<div class="yt">
+      <div class="row"><span class="title">${esc(x.n)}${x.sp ? " 💰" : ""}</span><span class="dday">${dday(x.l)}</span></div>
+      <div class="sub"><span class="badge ${x.c}">${ico} ${lab}</span> · 업로드 ${esc(x.d || "미정")} · 지금 ${esc(x.s)}</div>
+      <div class="steps" aria-hidden="true">${steps}</div>
+      <div class="steps-label">${labels}</div>
+    </div>`;
+  }).join("");
+  return `<section><h2>유튜브 · small table</h2>${rows}</section>`;
+}
+
+function secReminders(rm) {
+  let body;
+  if (rm == null) body = '<p class="empty">불러오지 못했어요</p>';
+  else if (!rm.length) body = '<p class="empty">걸어둔 알림이 없어요</p>';
+  else body = rm.map((x) => `<div class="li"><span class="at">${esc(x.a)}</span><span>${esc(x.m)}${x.r ? ` <span class="at">(${esc(x.r)})</span>` : ""}</span></div>`).join("");
+  return `<section><h2>리마인드</h2>${body}</section>`;
+}
+
+function secLedger(lg) {
+  if (!lg) return '<section><h2>가계부</h2><p class="empty">아직 기록된 지출이 없어요</p></section>';
+  const max = Math.max(1, ...lg.cat.map((c) => c[1]));
+  const cats = lg.cat.map((c) => `<div class="cat"><div class="row"><span>${esc(c[0])}</span><span>${num(c[1])}원</span></div>
+      <div class="gauge"><i style="width:${Math.max(2, (c[1] / max) * 100)}%"></i></div></div>`).join("");
+  return `<section><h2>가계부 · ${esc(lg.m)}</h2>
+    <div class="tiles"><div class="tile"><div class="v">${num(lg.sum)}원</div><div class="k">이번 달 지출</div></div>
+    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${cats}</section>`;
+}
+
+function secBackup(bk) {
+  if (!bk) return '<section><h2>백업</h2><p class="empty">백업 기록이 없어요</p></section>';
+  return `<section><h2>아이클라우드 백업</h2>
+    <div class="row"><span class="${bk.ok ? "ok" : "bad"}">${bk.ok ? "✅ 정상" : "⚠️ 확인 필요"}</span>
+    <span class="at"> · 마지막 ${esc(bk.a)} · 파일 ${num(bk.f)}개 · ${bk.mb}MB</span></div></section>`;
+}
+
+function secUsage(us) {
+  if (!us) return '<section><h2>아스라다 사용량</h2><p class="empty">불러오지 못했어요</p></section>';
+  const today = us.d[us.d.length - 1] || ["", 0, 0, 0];
+  const week = us.d.slice(-7).reduce((a, x) => [a[0] + x[1], a[1] + x[2]], [0, 0]);
+  const max = Math.max(1, ...us.d.map((x) => x[1]));
+  const bars = us.d.map((x, i) => `<div class="bar${x[1] ? "" : " zero"}" data-i="${i}" role="img"
+      aria-label="${x[0]} 요청 ${x[1]}건"><i style="height:${(x[1] / max) * 100}%"></i></div>`).join("");
+  const pct = Math.min(100, Math.round((us.ctx / us.lim) * 100));
+  const rows = us.d.slice().reverse().map((x) => `<tr><td>${x[0]}</td><td>${x[1]}</td><td>$${x[2].toFixed(2)}</td><td>${num(x[3])}</td></tr>`).join("");
+  return `<section><h2>아스라다 사용량 · 텔레그램</h2>
+    <div class="tiles">
+      <div class="tile"><div class="v">${today[1]}건</div><div class="k">오늘 요청</div></div>
+      <div class="tile"><div class="v">${us.h5[0]}건</div><div class="k">최근 5시간</div></div>
+      <div class="tile"><div class="v">${week[0]}건</div><div class="k">최근 7일</div></div>
+    </div>
+    <div class="chart" id="chart"><div class="tip" id="tip"></div><div class="bars">${bars}</div>
+      <div class="xlab"><span>${us.d[0][0]}</span><span>일별 요청 수 (최근 ${us.d.length}일)</span><span>오늘</span></div></div>
+    <div style="margin-top:14px"><div class="meta" style="margin:0"><span style="color:var(--ink)">지금 대화 크기</span><span>${num(us.ctx)} / ${num(us.lim)} 토큰 · ${pct}%</span></div>
+      <div class="gauge${pct >= 80 ? " warn" : ""}"><i style="width:${pct}%"></i></div>
+      <div class="meta"><span>100%가 되면 다음 메시지부터 새 대화</span></div></div>
+    <details><summary>표로 보기 · API 환산 금액 (구독이라 실제 청구 아님)</summary>
+      <table><tr><th>날짜</th><th>요청</th><th>API 환산</th><th>출력 토큰</th></tr>${rows}</table>
+      <p class="at">최근 7일 API 환산 $${week[1].toFixed(2)}</p></details>
+  </section>`;
+}
+
+function bindChart(us) {
+  const chart = $("#chart"), tip = $("#tip");
+  if (!chart) return;
+  const show = (el) => {
+    chart.querySelectorAll(".bar.sel").forEach((b) => b.classList.remove("sel"));
+    const x = us.d[+el.dataset.i];
+    el.classList.add("sel");
+    tip.textContent = `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`;
+    const r = el.getBoundingClientRect(), c = chart.getBoundingClientRect();
+    const left = Math.min(Math.max(r.left - c.left + r.width / 2, 70), c.width - 70);
+    tip.style.left = left + "px";
+    tip.style.display = "block";
+  };
+  chart.querySelectorAll(".bar").forEach((b) => {
+    b.addEventListener("pointerenter", () => show(b));
+    b.addEventListener("click", () => show(b));
+  });
+  chart.addEventListener("pointerleave", () => { tip.style.display = "none"; });
+}
+
+function ago(iso) {
+  const min = Math.round((Date.now() - new Date(iso + ":00+09:00").getTime()) / 60000);
+  if (min < 1) return "방금";
+  if (min < 60) return `${min}분 전`;
+  if (min < 60 * 24) return `${Math.round(min / 60)}시간 전`;
+  return `${Math.round(min / 1440)}일 전`;
+}
+
+async function main() {
+  const hash = location.hash.slice(1);
+  if (!hash) {
+    $("#app").innerHTML = '<section><p class="empty">텔레그램에서 아스라다에게 /home 을 보내 열어주세요.</p></section>';
+    return;
+  }
+  let d;
+  try { d = await decode(hash); }
+  catch (e) {
+    $("#app").innerHTML = '<section><p class="empty">숫자를 읽지 못했어요. /home 으로 다시 열어주세요.</p></section>';
+    return;
+  }
+  const a = ago(d.t);
+  const old = (Date.now() - new Date(d.t + ":00+09:00").getTime()) > 30 * 60000;
+  $("#when").innerHTML = `<span class="${old ? "stale" : ""}">${esc(d.tl)} 기준 · ${a}</span>`;
+  $("#app").innerHTML = secToday(d) + secYoutube(d.yt) + secReminders(d.rm) + secLedger(d.lg) + secBackup(d.bk) + secUsage(d.us);
+  bindChart(d.us);
+  $("#foot").textContent = "최신 숫자는 /home 을 다시 보내면 돼요";
+}
+main();
+</script>
+</body>
+</html>
