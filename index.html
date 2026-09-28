@@ -184,19 +184,22 @@ function secBackup(bk) {
 
 function secUsage(us) {
   if (!us) return '<section><h2>아스라다 사용량</h2><p class="empty">불러오지 못했어요</p></section>';
-  const today = us.d[us.d.length - 1] || ["", 0, 0, 0];
   const week = us.d.slice(-7).reduce((a, x) => [a[0] + x[1], a[1] + x[2]], [0, 0]);
   const max = Math.max(1, ...us.d.map((x) => x[1]));
   const bars = us.d.map((x, i) => `<div class="bar${x[1] ? "" : " zero"}" data-i="${i}" role="img"
       aria-label="${x[0]} 요청 ${x[1]}건"><i style="height:${(x[1] / max) * 100}%"></i></div>`).join("");
   const pct = Math.min(100, Math.round((us.ctx / us.lim) * 100));
   const rows = us.d.slice().reverse().map((x) => `<tr><td>${x[0]}</td><td>${x[1]}</td><td>$${x[2].toFixed(2)}</td><td>${num(x[3])}</td></tr>`).join("");
-  return `<section><h2>아스라다 사용량 · 텔레그램</h2>
-    <div class="tiles">
-      <div class="tile"><div class="v">${today[1]}건</div><div class="k">오늘 요청</div></div>
-      <div class="tile"><div class="v">${us.h5[0]}건</div><div class="k">최근 5시간</div></div>
-      <div class="tile"><div class="v">${week[0]}건</div><div class="k">최근 7일</div></div>
-    </div>
+  // 구독 한도 게이지: lim = [사용 %, 초기화 시각], reqs = 그 기간 텔레그램 요청 수
+  const limit = (name, lim, reqs) => lim
+    ? `<div style="margin-bottom:12px"><div class="meta" style="margin:0"><span style="color:var(--ink)">${name}</span><span>${lim[0]}% 사용</span></div>
+        <div class="gauge${lim[0] >= 80 ? " warn" : ""}"><i style="width:${Math.min(100, lim[0])}%"></i></div>
+        <div class="meta"><span>텔레그램 요청 ${reqs}건</span><span>${esc(lim[1])} 초기화</span></div></div>`
+    : `<div class="meta" style="margin:0 0 12px"><span style="color:var(--ink)">${name}</span><span>텔레그램 요청 ${reqs}건</span></div>`;
+  return `<section><h2>아스라다 사용량</h2>
+    ${limit("5시간 한도", us.lim5, us.h5[0])}
+    ${limit("주간 한도", us.lim7, week[0])}
+    ${us.limAt ? `<div class="meta" style="margin:-6px 0 12px"><span>한도는 터미널 사용까지 합친 계정 전체 기준 · ${esc(us.limAt)} 확인</span></div>` : ""}
     <div class="chart" id="chart"><div class="tip" id="tip"></div><div class="bars">${bars}</div>
       <div class="xlab"><span>${us.d[0][0]}</span><span>일별 요청 수 (최근 ${us.d.length}일)</span><span>오늘</span></div></div>
     <div style="margin-top:14px"><div class="meta" style="margin:0"><span style="color:var(--ink)">지금 대화 크기</span><span>${num(us.ctx)} / ${num(us.lim)} 토큰 · ${pct}%</span></div>
