@@ -237,8 +237,9 @@ function ago(iso) {
 }
 
 async function main() {
-  // 텔레그램이 '#' 뒤에 '&tgWebAppData=...' 같은 자체 값을 덧붙이므로 '=' 없는 우리 조각만 쓴다
-  const hash = location.hash.slice(1).split("&").find((p) => p && !p.includes("=")) || "";
+  // 숫자는 '?d=' 에 담겨 온다. 아이폰 텔레그램이 '#' 뒤를 덮어쓰기 때문 (예전 '#' 방식도 읽어줌)
+  const hash = new URLSearchParams(location.search).get("d")
+    || location.hash.slice(1).split("&").find((p) => p && !p.includes("=")) || "";
   if (!hash) {
     $("#app").innerHTML = '<section><p class="empty">텔레그램에서 아스라다에게 /home 을 보내 열어주세요.</p></section>';
     return;
