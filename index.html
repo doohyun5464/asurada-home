@@ -237,7 +237,8 @@ function ago(iso) {
 }
 
 async function main() {
-  const hash = location.hash.slice(1);
+  // 텔레그램이 '#' 뒤에 '&tgWebAppData=...' 같은 자체 값을 덧붙이므로 '=' 없는 우리 조각만 쓴다
+  const hash = location.hash.slice(1).split("&").find((p) => p && !p.includes("=")) || "";
   if (!hash) {
     $("#app").innerHTML = '<section><p class="empty">텔레그램에서 아스라다에게 /home 을 보내 열어주세요.</p></section>';
     return;
