@@ -72,6 +72,46 @@
   .steps div.on { background: var(--accent); }
   .steps-label { display: grid; grid-template-columns: repeat(5, 1fr); font-size: 10px; color: var(--muted); margin-top: 5px; text-align: center; letter-spacing: .5px; }
   .steps-label .cur { color: var(--ink); font-weight: 700; }
+  /* 단계 버튼 — 누르면 봇에게 단계 변경을 보낸다 */
+  .steps-label button { font: inherit; color: inherit; background: none; border: 0; padding: 6px 0; margin-top: -6px;
+                        cursor: pointer; letter-spacing: inherit; -webkit-tap-highlight-color: transparent; }
+  .steps-label button.cur { color: var(--ink); font-weight: 700; }
+  .steps-label button:active { color: var(--accent); }
+  .yt .done { margin-top: 10px; width: 100%; padding: 10px; background: none; border: 1px solid var(--line);
+              color: var(--ink); font: 700 12px/1 inherit; letter-spacing: 1.5px; cursor: pointer; }
+  .yt .done:active { border-color: var(--accent); color: var(--accent); }
+  .hint { color: var(--muted); font-size: 12px; margin: -6px 0 12px; }
+
+  /* 날씨 */
+  .wx { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+  .wx .big { font-size: 44px; font-weight: 700; color: var(--ink); line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -1px; }
+  .wx .big small { font-size: 18px; color: var(--muted); font-weight: 300; letter-spacing: 0; }
+  .wx .cond { text-align: right; color: var(--ink); font-size: 15px; }
+  .wx .cond small { display: block; color: var(--muted); font-size: 13px; }
+  .wx-tip { margin-top: 14px; padding: 10px 12px; background: var(--soft); border-left: 2px solid var(--accent);
+            color: var(--ink); font-size: 14px; }
+  .hours { display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; margin-top: 12px; text-align: center; }
+  .hours div { background: var(--soft); padding: 8px 0; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hours b { display: block; color: var(--ink); font-size: 15px; font-weight: 700; margin: 2px 0; }
+  .hours div.now { outline: 1px solid var(--accent); outline-offset: -1px; }
+
+  /* 오늘 일정 타임라인 */
+  .allday { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .allday span { background: var(--soft); border-left: 2px solid var(--accent); padding: 6px 10px; font-size: 13px; color: var(--ink); }
+  .allday em { font-style: normal; color: var(--muted); font-size: 11px; margin-left: 6px; letter-spacing: .5px; }
+  .tl { position: relative; margin-left: 58px; border-left: 1px solid var(--line); }
+  .tl .ev { position: relative; padding: 0 0 16px 16px; font-size: 14px; }
+  .tl .ev:last-child { padding-bottom: 2px; }
+  .tl .ev::before { content: ""; position: absolute; left: -4px; top: 7px; width: 7px; height: 7px; background: var(--accent); }
+  .tl .ev .t { position: absolute; left: -58px; width: 48px; top: 0; text-align: right; color: var(--ink);
+               font-weight: 700; font-variant-numeric: tabular-nums; font-size: 13px; }
+  .tl .ev .ttl { color: var(--ink); }
+  .tl .ev .sub { color: var(--muted); font-size: 12px; }
+  .tl .ev.past { opacity: .45; }
+  .tl .ev.past::before { background: var(--track); }
+  .tl .nowline { position: relative; height: 0; border-top: 2px solid var(--accent); margin: 0 0 16px -1px; }
+  .tl .nowline span { position: absolute; left: -58px; top: -9px; width: 48px; text-align: right; font-size: 11px;
+                      font-weight: 700; color: var(--accent); letter-spacing: 1px; }
 
   /* 리스트 */
   .li { display: flex; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
@@ -108,6 +148,8 @@
   td:first-child, th:first-child { text-align: left; }
   th { color: var(--muted); font-weight: 700; font-size: 11px; letter-spacing: 1px; }
 
+  .vs { font-size: 13px; color: var(--muted); margin-top: 10px; }
+  .vs b { color: var(--ink); font-weight: 700; }
   .cat { margin-top: 12px; }
   .cat .row { display: flex; justify-content: space-between; font-size: 14px; }
   .cat .gauge i { background: var(--accent); }
@@ -162,21 +204,104 @@ function secToday(d) {
   return html + "</section>";
 }
 
-function secYoutube(yt) {
+// WMO 날씨 코드 → 이모지
+function wxIcon(c) {
+  if (c === 0) return "☀️";
+  if (c <= 2) return "🌤️";
+  if (c === 3) return "☁️";
+  if (c <= 48) return "🌫️";
+  if (c <= 67 || (c >= 80 && c <= 82)) return "🌧️";
+  if (c <= 86) return "🌨️";
+  return "⛈️";
+}
+
+function secWeather(wx) {
+  if (!wx) return "";
+  const hourNow = new Date().getHours();
+  const hours = wx.h.map((h) => {
+    const cur = hourNow >= h[0] && hourNow < h[0] + 3;
+    return `<div class="${cur ? "now" : ""}">${h[0]}시<b>${h[1]}°</b>${wxIcon(h[3])}${h[2] >= 30 ? ` ${h[2]}%` : ""}</div>`;
+  }).join("");
+  return `<section><h2>날씨 · ${esc(wx.p)}</h2>
+    <div class="wx"><div class="big">${wx.now ?? wx.hi}°<small> 지금</small></div>
+      <div class="cond">${wxIcon(wx.c)} ${esc(wx.w)}<small>최저 ${wx.lo}° · 최고 ${wx.hi}° · 비 ${wx.pp}%</small></div></div>
+    <div class="hours">${hours}</div>
+    <div class="wx-tip">${esc(wx.tip)}</div></section>`;
+}
+
+function secEvents(ev) {
+  const head = '<section><h2>오늘 일정</h2>';
+  if (!ev) return head + '<p class="empty">아침 브리핑 뒤에 채워져요</p></section>';
+  const allday = ev.ev.filter((e) => !e[0]);
+  const timed = ev.ev.filter((e) => e[0]);
+  let html = head;
+  if (allday.length) {
+    html += `<div class="allday">${allday.map((e) => `<span>${esc(e[2])}${e[3] ? `<em>${esc(e[3])}</em>` : ""}</span>`).join("")}</div>`;
+  }
+  if (timed.length) {
+    const d = new Date();
+    const now = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    let placed = false, rows = "";
+    const nowline = `<div class="nowline"><span>NOW</span></div>`;
+    for (const e of timed) {
+      if (!placed && e[0] > now) { rows += nowline; placed = true; }
+      const past = (e[1] || e[0]) <= now;
+      rows += `<div class="ev${past ? " past" : ""}"><span class="t">${esc(e[0])}</span>
+        <div class="ttl">${esc(e[2])}</div>
+        <div class="sub">${e[1] ? `~${esc(e[1])}` : ""}${e[3] ? `${e[1] ? " · " : ""}${esc(e[3])}` : ""}</div></div>`;
+    }
+    if (!placed) rows += nowline;
+    html += `<div class="tl">${rows}</div>`;
+  } else if (!allday.length) {
+    html += '<p class="empty">오늘은 일정이 없어요</p>';
+  }
+  return html + `<div class="meta"><span>${esc(ev.at)} 캘린더 기준</span></div></section>`;
+}
+
+// 유튜브 단계 변경 — 미니앱은 봇에 직접 말을 못 걸어서 t.me 링크로 '/start yt_번호_단계' 를 보내게 한다
+function moveStage(id, title, idx) {
+  const bot = window.__bot;
+  const label = idx === 5 ? "완료" : STAGES[idx];
+  const go = () => {
+    tg.openTelegramLink(`https://t.me/${bot}?start=yt_${id}_${idx}`);
+    try { tg.close(); } catch (e) {}
+  };
+  const q = idx === 5 ? `'${title}' 업로드 끝났나요? 완료로 옮길게요.` : `'${title}'을(를) ${label} 단계로 옮길까요?`;
+  if (tg.showConfirm) tg.showConfirm(q, (ok) => ok && go());
+  else if (confirm(q)) go();
+}
+
+function secYoutube(yt, canEdit) {
   if (yt == null) return '<section><h2>유튜브 · small table</h2><p class="empty">불러오지 못했어요</p></section>';
   if (!yt.length) return '<section><h2>유튜브 · small table</h2><p class="empty">진행 중인 영상이 없어요</p></section>';
   const rows = yt.map((x) => {
     const [ico, lab] = LEVEL[x.c] || LEVEL.g;
     const steps = STAGES.map((_, i) => `<div class="${i <= x.si ? "on" : ""}"></div>`).join("");
-    const labels = STAGES.map((s, i) => `<span class="${i === x.si ? "cur" : ""}">${s}</span>`).join("");
-    return `<div class="yt">
+    const labels = STAGES.map((s, i) => canEdit && x.id != null
+      ? `<button type="button" class="${i === x.si ? "cur" : ""}" data-id="${x.id}" data-i="${i}">${s}</button>`
+      : `<span class="${i === x.si ? "cur" : ""}">${s}</span>`).join("");
+    const done = canEdit && x.id != null && x.si === 4
+      ? `<button type="button" class="done" data-id="${x.id}" data-i="5">업로드 끝 → 완료</button>` : "";
+    return `<div class="yt" data-title="${esc(x.n)}">
       <div class="row"><span class="title">${esc(x.n)}${x.sp ? " 💰" : ""}</span><span class="dday">${dday(x.l)}</span></div>
       <div class="sub"><span class="badge ${x.c}">${ico} ${lab}</span> · 업로드 ${esc(x.d || "미정")} · 지금 ${esc(x.s)}</div>
       <div class="steps" aria-hidden="true">${steps}</div>
-      <div class="steps-label">${labels}</div>
+      <div class="steps-label">${labels}</div>${done}
     </div>`;
   }).join("");
-  return `<section><h2>유튜브 · small table</h2>${rows}</section>`;
+  const hint = canEdit ? '<p class="hint">단계 이름을 누르면 바로 옮겨져요</p>' : "";
+  return `<section><h2>유튜브 · small table</h2>${hint}${rows}</section>`;
+}
+
+function bindStages() {
+  document.querySelectorAll(".yt button[data-id]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const i = +b.dataset.i, card = b.closest(".yt");
+      const cur = card.querySelector(".steps-label .cur");
+      if (cur === b) return;   // 이미 그 단계
+      moveStage(+b.dataset.id, card.dataset.title, i);
+    });
+  });
 }
 
 function secReminders(rm) {
@@ -192,9 +317,24 @@ function secLedger(lg) {
   const max = Math.max(1, ...lg.cat.map((c) => c[1]));
   const cats = lg.cat.map((c) => `<div class="cat"><div class="row"><span>${esc(c[0])}</span><span>${num(c[1])}원</span></div>
       <div class="gauge"><i style="width:${Math.max(2, (c[1] / max) * 100)}%"></i></div></div>`).join("");
+  const dd = lg.dd || [];
+  let chart = "";
+  if (dd.length) {
+    const dmax = Math.max(1, ...dd);
+    const bars = dd.map((v, i) => `<div class="bar${v > 0 ? "" : " zero"}" data-i="${i}" role="img"
+        aria-label="${i + 1}일 ${num(v)}원"><i style="height:${(Math.max(0, v) / dmax) * 100}%"></i></div>`).join("");
+    chart = `<div class="chart" id="lgchart"><div class="tip" id="lgtip"></div><div class="bars">${bars}</div>
+      <div class="xlab"><span>1일</span><span>날짜별 지출</span><span>오늘</span></div></div>`;
+  }
+  let vs = "";
+  if (lg.prev) {
+    const diff = Math.round(((lg.sum - lg.prev) / lg.prev) * 100);
+    const word = diff === 0 ? "똑같아요" : diff > 0 ? `<b>${diff}% 더</b> 썼어요` : `<b>${-diff}% 덜</b> 썼어요`;
+    vs = `<div class="vs">${esc(lg.pm)} 같은 기간(${num(lg.prev)}원)보다 ${word}</div>`;
+  }
   return `<section><h2>가계부 · ${esc(lg.m)}</h2>
     <div class="tiles"><div class="tile"><div class="v">${num(lg.sum)}원</div><div class="k">이번 달 지출</div></div>
-    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${cats}</section>`;
+    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${chart}${cats}</section>`;
 }
 
 function secBackup(bk) {
@@ -233,14 +373,14 @@ function secUsage(us) {
   </section>`;
 }
 
-function bindChart(us) {
-  const chart = $("#chart"), tip = $("#tip");
+// 막대를 누르거나 올리면 말풍선. label(i) 가 말풍선 글자
+function bindChart(chartSel, tipSel, label) {
+  const chart = $(chartSel), tip = $(tipSel);
   if (!chart) return;
   const show = (el) => {
     chart.querySelectorAll(".bar.sel").forEach((b) => b.classList.remove("sel"));
-    const x = us.d[+el.dataset.i];
     el.classList.add("sel");
-    tip.textContent = `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`;
+    tip.textContent = label(+el.dataset.i);
     const r = el.getBoundingClientRect(), c = chart.getBoundingClientRect();
     const left = Math.min(Math.max(r.left - c.left + r.width / 2, 70), c.width - 70);
     tip.style.left = left + "px";
@@ -278,8 +418,13 @@ async function main() {
   const a = ago(d.t);
   const old = (Date.now() - new Date(d.t + ":00+09:00").getTime()) > 30 * 60000;
   $("#when").innerHTML = `<span class="${old ? "stale" : ""}">${esc(d.tl)} 기준 · ${a}</span>`;
-  $("#app").innerHTML = secToday(d) + secYoutube(d.yt) + secReminders(d.rm) + secLedger(d.lg) + secBackup(d.bk) + secUsage(d.us);
-  bindChart(d.us);
+  window.__bot = d.bot;
+  const canEdit = !!(tg && tg.openTelegramLink && d.bot);
+  $("#app").innerHTML = secToday(d) + secWeather(d.wx) + secEvents(d.ev) + secYoutube(d.yt, canEdit)
+    + secReminders(d.rm) + secLedger(d.lg) + secBackup(d.bk) + secUsage(d.us);
+  if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
+  if (d.lg && d.lg.dd) bindChart("#lgchart", "#lgtip", (i) => `${d.lg.m} ${i + 1}일 · ${num(d.lg.dd[i])}원`);
+  bindStages();
   $("#foot").textContent = "최신 숫자는 /home 을 다시 보내면 돼요";
 }
 main();
