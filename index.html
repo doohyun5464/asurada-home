@@ -258,6 +258,35 @@ function secEvents(ev) {
   return html + `<div class="meta"><span>${esc(ev.at)} 캘린더 기준</span></div></section>`;
 }
 
+// 건강 — 수면 점수·어제 활동·다음 날 목표 (점수와 목표는 health.py 가 계산)
+function secHealth(hl) {
+  if (!hl) return '<section><h2>건강</h2><p class="empty">아직 건강 기록이 없어요</p></section>';
+  const { sl, ac, g, w } = hl;
+  const tile = (v, k) => `<div class="tile"><div class="v">${v}</div><div class="k">${esc(k)}</div></div>`;
+  let tiles = "", stages = "", goal = "", chart = "";
+  if (sl) {
+    tiles += tile(`${sl.sc}점`, `수면 점수 · ${sl.d}`) + tile(`${Math.floor(sl.m / 60)}시간 ${sl.m % 60}분`, "잔 시간");
+    if (sl.deep != null && sl.rem != null) {
+      stages = `<div class="vs">깊은 잠 <b>${sl.deep}분</b> · 렘 <b>${sl.rem}분</b>${sl.awake != null ? ` · 깸 <b>${sl.awake}분</b>` : ""}</div>`;
+    }
+  }
+  if (ac) {
+    tiles += tile(`${num(ac.st)}보`, `걸음 · ${ac.d}`)
+      + (ac.kc != null ? tile(`${num(ac.kc)}kcal`, "활동") : ac.ex != null ? tile(`${ac.ex}분`, "운동") : "");
+  }
+  if (g) {
+    goal = `<div class="wx-tip"><b>${esc(g.d)} 목표 ${num(g.st)}보${g.kc ? ` · 활동 ${num(g.kc)}kcal` : ""}</b><br>${esc(g.note)} (최근 평균 ${num(g.avg)}보)</div>`;
+  }
+  if (w && w.length) {
+    const max = Math.max(1, ...w.map((x) => x[1]));
+    const bars = w.map((x, i) => `<div class="bar${x[1] ? "" : " zero"}" data-i="${i}" role="img"
+        aria-label="${x[0]} ${num(x[1])}보"><i style="height:${(x[1] / max) * 100}%"></i></div>`).join("");
+    chart = `<div class="chart" id="hlchart"><div class="tip" id="hltip"></div><div class="bars">${bars}</div>
+      <div class="xlab"><span>${w[0][0]}</span><span>날짜별 걸음</span><span>${w[w.length - 1][0]}</span></div></div>`;
+  }
+  return `<section><h2>건강</h2><div class="tiles">${tiles}</div>${stages}${goal}${chart}</section>`;
+}
+
 // 유튜브 단계 변경 — 미니앱은 봇에 직접 말을 못 걸어서 t.me 링크로 '/start yt_번호_단계' 를 보내게 한다
 function moveStage(id, title, idx) {
   const bot = window.__bot;
@@ -332,9 +361,20 @@ function secLedger(lg) {
     const word = diff === 0 ? "똑같아요" : diff > 0 ? `<b>${diff}% 더</b> 썼어요` : `<b>${-diff}% 덜</b> 썼어요`;
     vs = `<div class="vs">${esc(lg.pm)} 같은 기간(${num(lg.prev)}원)보다 ${word}</div>`;
   }
+  let food = "";
+  if (lg.fd) {
+    let fvs = "";
+    if (lg.fprev) {
+      const diff = Math.round(((lg.food - lg.fprev) / lg.fprev) * 100);
+      const word = diff === 0 ? "똑같아요" : diff > 0 ? `<b>${diff}% 더</b> 썼어요` : `<b>${-diff}% 덜</b> 썼어요`;
+      fvs = `<div class="vs">${esc(lg.pm)} 같은 기간(${num(lg.fprev)}원)보다 ${word}</div>`;
+    }
+    const parts = lg.fd.map((c) => `<div class="li"><span class="at">${esc(c[0])}</span><span>${num(c[1])}원</span></div>`).join("");
+    food = `<div class="tiles"><div class="tile"><div class="v">${num(lg.food)}원</div><div class="k">${esc(lg.m)} 식비</div></div></div>${fvs}${parts}`;
+  }
   return `<section><h2>가계부 · ${esc(lg.m)}</h2>
     <div class="tiles"><div class="tile"><div class="v">${num(lg.sum)}원</div><div class="k">이번 달 지출</div></div>
-    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${chart}${cats}</section>`;
+    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${food}${chart}${cats}</section>`;
 }
 
 function secBackup(bk) {
@@ -420,10 +460,11 @@ async function main() {
   $("#when").innerHTML = `<span class="${old ? "stale" : ""}">${esc(d.tl)} 기준 · ${a}</span>`;
   window.__bot = d.bot;
   const canEdit = !!(tg && tg.openTelegramLink && d.bot);
-  $("#app").innerHTML = secToday(d) + secWeather(d.wx) + secEvents(d.ev) + secYoutube(d.yt, canEdit)
+  $("#app").innerHTML = secToday(d) + secWeather(d.wx) + secEvents(d.ev) + secHealth(d.hl) + secYoutube(d.yt, canEdit)
     + secReminders(d.rm) + secLedger(d.lg) + secBackup(d.bk) + secUsage(d.us);
   if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
   if (d.lg && d.lg.dd) bindChart("#lgchart", "#lgtip", (i) => `${d.lg.m} ${i + 1}일 · ${num(d.lg.dd[i])}원`);
+  if (d.hl && d.hl.w) bindChart("#hlchart", "#hltip", (i) => `${d.hl.w[i][0]} · ${num(d.hl.w[i][1])}보`);
   bindStages();
   $("#foot").textContent = "최신 숫자는 /home 을 다시 보내면 돼요";
 }
