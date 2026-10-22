@@ -158,7 +158,7 @@
 
   /* 바로가기 — 위에 붙어 있는 큰 버튼. 누르면 그 칸으로 스크롤 (2026-10-22 사용자 요청) */
   nav.jump { position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 8px 12px;
-             display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+             display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; }
   nav.jump[hidden] { display: none; }
   nav.jump button { font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1; color: var(--body); background: var(--card); border: 0;
                     border-bottom: 2px solid transparent; padding: 15px 0 13px; letter-spacing: 1px; cursor: pointer;
@@ -166,6 +166,14 @@
   nav.jump button.on { color: var(--ink); border-bottom-color: var(--accent); }
   nav.jump button:active { background: var(--soft); }
   section { scroll-margin-top: 112px; }
+
+  /* 오늘의 코디 — 매일 09:30 하나씩 바뀐다 (2026-10-22, 채팅 사진 대신) */
+  .st-wx { color: var(--muted); font-size: 13px; margin: -6px 0 12px; }
+  .st-img { display: block; width: 100%; max-height: 70vh; object-fit: contain; background: var(--soft); cursor: pointer; }
+  .st-look { color: var(--ink); font-weight: 700; font-size: 16px; line-height: 1.4; margin: 14px 0 4px; }
+  .st-items { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .st .li .at { min-width: 64px; }
+  .st a { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -268,6 +276,26 @@ function secEvents(ev) {
     html += '<p class="empty">오늘은 일정이 없어요</p>';
   }
   return html + `<div class="meta"><span>${esc(ev.at)} 캘린더 기준</span></div></section>`;
+}
+
+// 오늘의 코디 — 사진은 이 페이지 옆 style.jpg (날짜를 붙여 어제 사진이 캐시로 남지 않게), 날씨는 한 줄만
+function secStyle(st, wx) {
+  if (!st) return '<section><h2>오늘의 코디</h2><p class="empty">아침 9시 30분에 올라와요</p></section>';
+  const w = wx ? `<p class="st-wx">${wxIcon(wx.c)} ${esc(wx.w)} · ${wx.lo}~${wx.hi}° · 비 ${wx.pp}%</p>` : "";
+  const row = (k, v) => v ? `<div class="li"><span class="at">${k}</span><span>${esc(v)}</span></div>` : "";
+  const src = st.src ? `<div class="meta"><a href="${esc(st.src)}" data-link>사진 출처 보기</a></div>` : "";
+  return `<section class="st"><h2>${st.old ? `${esc(st.dl)} 코디` : "오늘의 코디"}${st.m ? ` · ${esc(st.m)}` : ""}</h2>${st.old ? "" : w}
+    <img class="st-img" src="style.jpg?v=${esc(st.d)}" alt="${esc(st.lk)}" ${st.src ? `data-href="${esc(st.src)}"` : ""}
+      onerror="this.remove()">
+    <div class="st-look">${esc(st.lk)}</div><div class="st-items">${esc(st.it)}</div>
+    ${row("좋은 이유", st.why)}${row("따라 입기", st.how)}${row("날씨", st.ss)}${src}</section>`;
+}
+
+// 바깥 링크는 텔레그램 브라우저로 연다
+function bindLinks() {
+  const open = (url) => (tg && tg.openLink ? tg.openLink(url) : window.open(url, "_blank"));
+  document.querySelectorAll("a[data-link]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); open(a.href); }));
+  document.querySelectorAll("img[data-href]").forEach((img) => img.addEventListener("click", () => open(img.dataset.href)));
 }
 
 // 건강 — 수면 점수·어제 활동·다음 날 목표 (점수와 목표는 health.py 가 계산)
@@ -454,7 +482,7 @@ function ago(iso) {
 }
 
 // 바로가기 버튼: [칸 id, 버튼 이름]. 칸은 mark() 로 id 를 단다
-const JUMPS = [["today", "오늘"], ["ev", "일정"], ["hl", "건강"], ["yt", "유튜브"], ["lg", "가계부"], ["us", "사용량"]];
+const JUMPS = [["today", "오늘"], ["ev", "일정"], ["st", "코디"], ["hl", "건강"], ["yt", "유튜브"], ["lg", "가계부"], ["us", "사용량"]];
 const mark = (id, html) => html.replace("<section", `<section id="s-${id}"`);
 
 function bindJump() {
@@ -500,13 +528,14 @@ async function main() {
   window.__bot = d.bot;
   const canEdit = !!(tg && tg.openTelegramLink && d.bot);
   $("#app").innerHTML = mark("today", secToday(d)) + secWeather(d.wx) + mark("ev", secEvents(d.ev))
-    + mark("hl", secHealth(d.hl)) + mark("yt", secYoutube(d.yt, canEdit))
+    + mark("st", secStyle(d.st, d.wx)) + mark("hl", secHealth(d.hl)) + mark("yt", secYoutube(d.yt, canEdit))
     + secReminders(d.rm) + mark("lg", secLedger(d.lg)) + secBackup(d.bk) + mark("us", secUsage(d.us));
   bindJump();
   if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
   if (d.lg && d.lg.dd) bindChart("#lgchart", "#lgtip", (i) => `${d.lg.m} ${i + 1}일 · ${num(d.lg.dd[i])}원`);
   if (d.hl && d.hl.w) bindChart("#hlchart", "#hltip", (i) => `${d.hl.w[i][0]} · ${num(d.hl.w[i][1])}보`);
   bindStages();
+  bindLinks();
   $("#foot").textContent = "최신 숫자는 /home 을 다시 보내면 돼요";
 }
 main();
