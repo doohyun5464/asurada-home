@@ -155,11 +155,23 @@
   .cat .gauge i { background: var(--accent); }
   .ok { color: var(--green); font-weight: 700; } .bad { color: var(--red); font-weight: 700; }
   .foot { text-align: center; color: var(--muted); font-size: 12px; letter-spacing: .5px; margin-top: 16px; }
+
+  /* 바로가기 — 위에 붙어 있는 큰 버튼. 누르면 그 칸으로 스크롤 (2026-10-22 사용자 요청) */
+  nav.jump { position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 8px 12px;
+             display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; }
+  nav.jump[hidden] { display: none; }
+  nav.jump button { font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1; color: var(--body); background: var(--card); border: 0;
+                    border-bottom: 2px solid transparent; padding: 15px 0 13px; letter-spacing: 1px; cursor: pointer;
+                    -webkit-tap-highlight-color: transparent; }
+  nav.jump button.on { color: var(--ink); border-bottom-color: var(--accent); }
+  nav.jump button:active { background: var(--soft); }
+  section { scroll-margin-top: 112px; }
 </style>
 </head>
 <body>
 <header><h1>Asurada 홈</h1><span class="when" id="when"></span></header>
 <div class="m-stripe" aria-hidden="true"></div>
+<nav class="jump" id="jump" hidden></nav>
 <main id="app"><section><p class="empty">불러오는 중…</p></section></main>
 <p class="foot" id="foot"></p>
 
@@ -441,6 +453,33 @@ function ago(iso) {
   return `${Math.round(min / 1440)}일 전`;
 }
 
+// 바로가기 버튼: [칸 id, 버튼 이름]. 칸은 mark() 로 id 를 단다
+const JUMPS = [["today", "오늘"], ["ev", "일정"], ["hl", "건강"], ["yt", "유튜브"], ["lg", "가계부"], ["us", "사용량"]];
+const mark = (id, html) => html.replace("<section", `<section id="s-${id}"`);
+
+function bindJump() {
+  const nav = $("#jump");
+  const items = JUMPS.filter(([id]) => document.getElementById(`s-${id}`));
+  nav.innerHTML = items.map(([id, name]) => `<button type="button" data-id="${id}">${name}</button>`).join("");
+  nav.hidden = false;
+  const btns = [...nav.querySelectorAll("button")];
+  const setOn = (id) => btns.forEach((b) => b.classList.toggle("on", b.dataset.id === id));
+  btns.forEach((b) => b.addEventListener("click", () => {
+    document.getElementById(`s-${b.dataset.id}`).scrollIntoView({ behavior: "smooth", block: "start" });
+    setOn(b.dataset.id);
+  }));
+  // 스크롤하면 지금 보고 있는 칸의 버튼에 불이 들어온다
+  const onScroll = () => {
+    let cur = items[0][0];
+    for (const [id] of items) {
+      if (document.getElementById(`s-${id}`).getBoundingClientRect().top <= 140) cur = id;
+    }
+    setOn(cur);
+  };
+  window.addEventListener("scroll", onScroll, { passive: true });
+  onScroll();
+}
+
 async function main() {
   // 숫자는 '?d=' 에 담겨 온다. 아이폰 텔레그램이 '#' 뒤를 덮어쓰기 때문 (예전 '#' 방식도 읽어줌)
   const hash = new URLSearchParams(location.search).get("d")
@@ -460,8 +499,10 @@ async function main() {
   $("#when").innerHTML = `<span class="${old ? "stale" : ""}">${esc(d.tl)} 기준 · ${a}</span>`;
   window.__bot = d.bot;
   const canEdit = !!(tg && tg.openTelegramLink && d.bot);
-  $("#app").innerHTML = secToday(d) + secWeather(d.wx) + secEvents(d.ev) + secHealth(d.hl) + secYoutube(d.yt, canEdit)
-    + secReminders(d.rm) + secLedger(d.lg) + secBackup(d.bk) + secUsage(d.us);
+  $("#app").innerHTML = mark("today", secToday(d)) + secWeather(d.wx) + mark("ev", secEvents(d.ev))
+    + mark("hl", secHealth(d.hl)) + mark("yt", secYoutube(d.yt, canEdit))
+    + secReminders(d.rm) + mark("lg", secLedger(d.lg)) + secBackup(d.bk) + mark("us", secUsage(d.us));
+  bindJump();
   if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
   if (d.lg && d.lg.dd) bindChart("#lgchart", "#lgtip", (i) => `${d.lg.m} ${i + 1}일 · ${num(d.lg.dd[i])}원`);
   if (d.hl && d.hl.w) bindChart("#hlchart", "#hltip", (i) => `${d.hl.w[i][0]} · ${num(d.hl.w[i][1])}보`);
