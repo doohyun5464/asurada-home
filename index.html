@@ -195,6 +195,14 @@
   .tile.main .v { color: #fff; } .tile.main .k { color: rgba(255,255,255,.85); }
   .tile.food { background: var(--primary-soft); box-shadow: inset 3px 0 0 var(--primary); }
   .tile.food .k { color: var(--primary); }
+  /* 가계부 칸은 슬림하게: 지출 칸을 넓게 잡아 금액이 한 줄에, 식비는 한 줄짜리 띠 (2026-10-23) */
+  .tiles.slim { grid-template-columns: 1.7fr 1fr; }
+  .tiles.slim .tile { padding: 9px 12px; }
+  .tiles.slim .tile .v { font-size: 19px; }
+  .tiles.slim .tile .v.won { font-size: clamp(17px, 5vw, 20px); }
+  .tiles.slim .tile .k { font-size: 11px; margin-top: 2px; }
+  .tiles.slim .tile.food { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+  .tiles.slim .tile.food .k { order: -1; margin-top: 0; font-size: 12px; }
 
   /* 막대그래프 (단일 계열) */
   .chart { position: relative; margin-top: 18px; }
@@ -534,10 +542,10 @@ function secLedger(lg) {
       fvs = `<div class="vs">${esc(lg.pm)} 같은 기간(${num(lg.fprev)}원)보다 ${word}</div>`;
     }
     const parts = lg.fd.map((c) => `<div class="li"><span class="at">${esc(c[0])}</span><span>${num(c[1])}원</span></div>`).join("");
-    food = `<div class="tiles"><div class="tile food"><div class="v won">${num(lg.food)}<small>원</small></div><div class="k">${esc(lg.m)} 식비</div></div></div>${fvs}${parts}`;
+    food = `<div class="tiles slim" style="margin-top:12px"><div class="tile food"><div class="v won">${num(lg.food)}<small>원</small></div><div class="k">${esc(lg.m)} 식비</div></div></div>${fvs}${parts}`;
   }
   return `<section><h2>가계부 · ${esc(lg.m)}</h2>
-    <div class="tiles"><div class="tile main"><div class="v won">${num(lg.sum)}<small>원</small></div><div class="k">이번 달 지출</div></div>
+    <div class="tiles slim"><div class="tile main"><div class="v won">${num(lg.sum)}<small>원</small></div><div class="k">이번 달 지출</div></div>
     <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${food}${chart}${cats}</section>`;
 }
 
