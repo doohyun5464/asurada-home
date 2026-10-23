@@ -329,12 +329,13 @@ function secHealth(hl) {
 // 유튜브 단계 변경 — 미니앱은 봇에 직접 말을 못 걸어서 t.me 링크로 '/start yt_번호_단계' 를 보내게 한다
 function moveStage(id, title, idx) {
   const bot = window.__bot;
-  const label = idx === 5 ? "완료" : STAGES[idx];
   const go = () => {
     tg.openTelegramLink(`https://t.me/${bot}?start=yt_${id}_${idx}`);
     try { tg.close(); } catch (e) {}
   };
-  const q = idx === 5 ? `'${title}' 업로드 끝났나요? 완료로 옮길게요.` : `'${title}'을(를) ${label} 단계로 옮길까요?`;
+  // 단계 옮기기는 누르면 바로 (2026-10-23 가볍게). 목록에서 빠지는 '완료'만 한 번 묻는다.
+  if (idx !== 5) return go();
+  const q = `'${title}' 업로드 끝났나요? 완료로 옮길게요.`;
   if (tg.showConfirm) tg.showConfirm(q, (ok) => ok && go());
   else if (confirm(q)) go();
 }
