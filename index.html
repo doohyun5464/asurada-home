@@ -661,7 +661,7 @@ async function main() {
   const canEdit = !!(tg && tg.openTelegramLink && d.bot);
   $("#app").innerHTML = mark("today", secToday(d)) + mark("wx", secWeather(d.wx)) + mark("ev", secEvents(d.ev))
     + mark("st", secStyle(d.st, d.wx)) + mark("hl", secHealth(d.hl)) + mark("yt", secYoutube(d.yt, canEdit))
-    + mark("rm", secReminders(d.rm)) + mark("lg", secLedger(d.lg)) + mark("bk", secBackup(d.bk)) + mark("us", secUsage(d.us));
+    + mark("lg", secLedger(d.lg)) + mark("bk", secBackup(d.bk)) + mark("us", secUsage(d.us));
   bindJump();
   if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
   if (d.lg && d.lg.dd) bindChart("#lgchart", "#lgtip", (i) => `${d.lg.m} ${i + 1}일 · ${num(d.lg.dd[i])}원`);
