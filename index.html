@@ -309,6 +309,12 @@ if (tg) {
   tg.ready(); tg.expand();
   // 텔레그램 상단바·바깥 배경도 바탕색으로 맞춘다 (구버전 앱에선 없는 기능이라 조용히 넘어감)
   try { tg.setHeaderColor("#141415"); tg.setBackgroundColor("#141415"); } catch (e) {}
+  // 버튼·링크·막대를 누를 때마다 가벼운 햅틱 (2026-10-24 사용자 요청). 꾹 누르기 팝업은 bindRings 에서 따로 'medium'
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("button, a, .bar, .pop-bg") && tg.HapticFeedback) {
+      try { tg.HapticFeedback.impactOccurred("light"); } catch (err) {}
+    }
+  }, true);
 }
 
 const $ = (s) => document.querySelector(s);
