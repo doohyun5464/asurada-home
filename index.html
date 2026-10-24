@@ -622,7 +622,7 @@ function bindRings(lg) {
     const total = etc ? Object.entries(lg.ic || {}).filter(([k]) => !shown.includes(k)).reduce((a, [, n]) => a + n, 0)
                       : (lg.ic || {})[cat] || rows.length;
     const list = rows.map((x) => `<div class="li"><span class="at">${esc(lg.m)} ${x[0]}일</span>
-      <span>${esc(x[1])}${etc ? ` <span class="at">· ${esc(x[3])}</span>` : ""}</span><b>${num(x[2])}원</b></div>`).join("");
+      <span>${esc(x[1])}${etc || x[4] ? ` <span class="at">· ${esc(x[4] || x[3])}</span>` : ""}</span><b>${num(x[2])}원</b></div>`).join("");
     const more = total > rows.length ? `<div class="more">큰 금액 ${rows.length}건만 보여요 (전체 ${total}건)</div>` : "";
     const bg = document.createElement("div");
     bg.className = "pop-bg";
