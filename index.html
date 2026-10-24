@@ -253,6 +253,17 @@
   .ring b { position: relative; z-index: 1; color: var(--ink); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .ring-k { color: var(--ink); font-size: 12px; margin-top: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ring-v { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  /* 분류 칸을 꾹 누르면 상세 내역 팝업 (2026-10-24) */
+  .ring-it { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; transition: transform .15s; }
+  .ring-it.hold { transform: scale(.95); }
+  .pop-bg { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; }
+  .pop { width: 100%; max-width: 520px; max-height: 70vh; overflow-y: auto; background: var(--card); border: 1px solid var(--glass-edge);
+         border-radius: var(--r-card) var(--r-card) 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); }
+  .pop h3 { margin: 0 0 4px; font-size: 17px; font-weight: 800; color: var(--ink); display: flex; justify-content: space-between; }
+  .pop .li .at { min-width: 64px; }
+  .pop .li span:nth-child(2) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pop .li b { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .pop .more { color: var(--muted); font-size: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
   .cat .gauge i { background: var(--c); }
   .ok { color: var(--green); font-weight: 800; } .bad { color: var(--red); font-weight: 800; }
   .ok.pill { background: var(--primary); color: #fff; } .bad.pill { background: var(--red); color: #fff; }
@@ -510,7 +521,7 @@ function secLedger(lg) {
   }).join(", ");
   const rings = pos.map((c, i) => {
     const p = (c[1] / tot) * 100, col = ringCol(c, i);
-    return `<div class="ring-it"><div class="ring" style="background:conic-gradient(${col} ${p}%, var(--track) 0)"><b>${Math.round(p)}%</b></div>
+    return `<div class="ring-it" data-cat="${esc(c[0])}"><div class="ring" style="background:conic-gradient(${col} ${p}%, var(--track) 0)"><b>${Math.round(p)}%</b></div>
       <div class="ring-k">${esc(c[0])}</div><div class="ring-v">${num(c[1])}원</div></div>`;
   }).join("");
   const top = pos[0];
@@ -595,6 +606,39 @@ function bindChart(chartSel, tipSel, label) {
   chart.addEventListener("pointerleave", () => { tip.style.display = "none"; });
 }
 
+// 가계부 분류 칸을 꾹 누르면(0.45초) 그 분류의 이번 달 내역을 아래에서 올라오는 팝업으로
+function bindRings(lg) {
+  if (!lg.it) return;
+  const shown = lg.cat.filter((c) => c[1] > 0).map((c) => c[0]);
+  const open = (cat) => {
+    const etc = cat === "그 외";
+    const rows = lg.it.filter((x) => (etc ? !shown.includes(x[3]) : x[3] === cat));
+    const total = etc ? Object.entries(lg.ic || {}).filter(([k]) => !shown.includes(k)).reduce((a, [, n]) => a + n, 0)
+                      : (lg.ic || {})[cat] || rows.length;
+    const list = rows.map((x) => `<div class="li"><span class="at">${esc(lg.m)} ${x[0]}일</span>
+      <span>${esc(x[1])}${etc ? ` <span class="at">· ${esc(x[3])}</span>` : ""}</span><b>${num(x[2])}원</b></div>`).join("");
+    const more = total > rows.length ? `<div class="more">큰 금액 ${rows.length}건만 보여요 (전체 ${total}건)</div>` : "";
+    const bg = document.createElement("div");
+    bg.className = "pop-bg";
+    bg.innerHTML = `<div class="pop"><h3><span>${esc(cat)}</span><span class="at">${total}건</span></h3>${list || '<p class="empty">내역이 없어요</p>'}${more}</div>`;
+    bg.addEventListener("click", (e) => { if (e.target === bg) bg.remove(); });
+    document.body.appendChild(bg);
+    if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred("medium");
+  };
+  document.querySelectorAll(".ring-it[data-cat]").forEach((el) => {
+    let timer = null, x0 = 0, y0 = 0;
+    const cancel = () => { clearTimeout(timer); timer = null; el.classList.remove("hold"); };
+    el.addEventListener("pointerdown", (e) => {
+      x0 = e.clientX; y0 = e.clientY;
+      el.classList.add("hold");
+      timer = setTimeout(() => { cancel(); open(el.dataset.cat); }, 450);
+    });
+    el.addEventListener("pointermove", (e) => { if (timer && Math.hypot(e.clientX - x0, e.clientY - y0) > 10) cancel(); });
+    ["pointerup", "pointerleave", "pointercancel"].forEach((t) => el.addEventListener(t, cancel));
+    el.addEventListener("contextmenu", (e) => e.preventDefault());
+  });
+}
+
 function ago(iso) {
   const min = Math.round((Date.now() - new Date(iso + ":00+09:00").getTime()) / 60000);
   if (min < 1) return "방금";
@@ -654,6 +698,7 @@ async function main() {
     + mark("lg", secLedger(d.lg)) + mark("bk", secBackup(d.bk)) + mark("us", secUsage(d.us));
   bindJump();
   if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
+  if (d.lg) bindRings(d.lg);
   if (d.lg && d.lg.dd) bindChart("#lgchart", "#lgtip", (i) => `${d.lg.m} ${i + 1}일 · ${num(d.lg.dd[i])}원`);
   if (d.hl && d.hl.w) bindChart("#hlchart", "#hltip", (i) => `${d.hl.w[i][0]} · ${num(d.hl.w[i][1])}보`);
   bindStages();
