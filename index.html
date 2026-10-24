@@ -533,20 +533,10 @@ function secLedger(lg) {
     const word = diff === 0 ? "똑같아요" : diff > 0 ? `<b>${diff}% 더</b> 썼어요` : `<b>${-diff}% 덜</b> 썼어요`;
     vs = `<div class="vs">${esc(lg.pm)} 같은 기간(${num(lg.prev)}원)보다 ${word}</div>`;
   }
-  let food = "";
-  if (lg.fd) {
-    let fvs = "";
-    if (lg.fprev) {
-      const diff = Math.round(((lg.food - lg.fprev) / lg.fprev) * 100);
-      const word = diff === 0 ? "똑같아요" : diff > 0 ? `<b>${diff}% 더</b> 썼어요` : `<b>${-diff}% 덜</b> 썼어요`;
-      fvs = `<div class="vs">${esc(lg.pm)} 같은 기간(${num(lg.fprev)}원)보다 ${word}</div>`;
-    }
-    const parts = lg.fd.map((c) => `<div class="li"><span class="at">${esc(c[0])}</span><span>${num(c[1])}원</span></div>`).join("");
-    food = `<div class="tiles slim" style="margin-top:12px"><div class="tile food"><div class="v won">${num(lg.food)}<small>원</small></div><div class="k">${esc(lg.m)} 식비</div></div></div>${fvs}${parts}`;
-  }
+  // '○월 식비' 묶음 칸은 사용자 요청으로 뺌 (2026-10-24)
   return `<section><h2>가계부 · ${esc(lg.m)}</h2>
     <div class="tiles slim"><div class="tile main"><div class="v won">${num(lg.sum)}<small>원</small></div><div class="k">이번 달 지출</div></div>
-    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${food}${chart}${cats}</section>`;
+    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${chart}${cats}</section>`;
 }
 
 function secBackup(bk) {
