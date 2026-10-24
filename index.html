@@ -136,6 +136,19 @@
               color: #fff; font: 600 14px/1 inherit; cursor: pointer; }
   .yt .done:active { filter: brightness(.9); }
   .hint { color: var(--muted); font-size: 12px; margin: -6px 0 12px; }
+  .yt.finished .title { text-decoration: line-through; color: var(--muted); }
+  /* 바꾼 단계가 있으면 아래에서 올라오는 저장 줄 */
+  .ytsave { position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 20;
+            display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 16px; border-radius: var(--r-card);
+            background: rgba(46,48,53,.82); -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 8px 24px rgba(0,0,0,.4);
+            transform: translateY(140%); transition: transform .25s ease; }
+  .ytsave.show { transform: none; }
+  .ytsave span { flex: 1; color: var(--ink); font-size: 14px; font-weight: 600; }
+  .ytsave button { border: 0; border-radius: var(--r-btn); padding: 10px 14px; font: 600 14px/1 inherit; cursor: pointer; }
+  .ytsave .undo { background: none; color: var(--muted); }
+  .ytsave .save { background: var(--c); color: #fff; padding: 10px 20px; }
+  .ytsave button:active { filter: brightness(.9); }
 
   /* 날씨 */
   .wx { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
@@ -302,6 +315,7 @@
 <nav class="jump" id="jump" hidden></nav>
 <main id="app"><section><p class="empty">불러오는 중…</p></section></main>
 <p class="foot" id="foot"></p>
+<div class="ytsave" id="ytsave" data-c="yt"><span></span><button type="button" class="undo">되돌리기</button><button type="button" class="save">저장</button></div>
 
 <script>
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -457,18 +471,43 @@ function secHealth(hl) {
   return `<section><h2>건강</h2><div class="tiles">${tiles}</div>${stages}${goal}${chart}</section>`;
 }
 
-// 유튜브 단계 변경 — 미니앱은 봇에 직접 말을 못 걸어서 t.me 링크로 '/start yt_번호_단계' 를 보내게 한다
-function moveStage(id, title, idx) {
-  const bot = window.__bot;
-  const go = () => {
-    tg.openTelegramLink(`https://t.me/${bot}?start=yt_${id}_${idx}`);
-    try { tg.close(); } catch (e) {}
-  };
-  // 단계 옮기기는 누르면 바로 (2026-10-23 가볍게). 목록에서 빠지는 '완료'만 한 번 묻는다.
-  if (idx !== 5) return go();
-  const q = `'${title}' 업로드 끝났나요? 완료로 옮길게요.`;
-  if (tg.showConfirm) tg.showConfirm(q, (ok) => ok && go());
-  else if (confirm(q)) go();
+// 유튜브 단계 변경 — 미니앱은 봇에 직접 말을 못 걸어서 t.me 링크로 '/start yt_번호-단계_번호-단계' 를 보낸다.
+// 링크를 열면 앱이 닫히므로, 누를 때마다 보내지 않고 화면에서 먼저 옮겨 두었다가 '저장' 한 번에 모아 보낸다 (2026-10-24).
+const pendingStages = new Map();   // 번호 → 바꿀 단계 (원래 단계로 되돌리면 빠짐)
+
+function paintStage(card, idx) {
+  card.querySelectorAll(".steps div").forEach((s, i) => s.classList.toggle("on", i <= Math.min(idx, 4)));
+  card.querySelectorAll(".steps-label button").forEach((b) => b.classList.toggle("cur", +b.dataset.i === idx));
+  card.classList.toggle("finished", idx === 5);
+  const done = card.querySelector(".done");
+  if (done) done.textContent = idx === 5 ? "완료 취소" : "업로드 끝 → 완료";
+}
+
+function renderSaveBar() {
+  const bar = $("#ytsave");
+  const n = pendingStages.size;
+  bar.classList.toggle("show", n > 0);
+  bar.querySelector("span").textContent = `단계 ${n}개 바꿈`;
+  // 저장 안 하고 닫으려 하면 한 번 묻는다
+  try { n ? tg.enableClosingConfirmation() : tg.disableClosingConfirmation(); } catch (e) {}
+}
+
+function moveStage(card, idx) {
+  const id = +card.dataset.id, orig = +card.dataset.si;
+  const cur = pendingStages.has(id) ? pendingStages.get(id) : orig;
+  if (idx === 5 && cur === 5) idx = orig === 5 ? 4 : orig;   // '완료 취소'
+  if (idx === cur) return;
+  if (idx === orig) pendingStages.delete(id); else pendingStages.set(id, idx);
+  paintStage(card, idx);
+  renderSaveBar();
+}
+
+function saveStages() {
+  if (!pendingStages.size) return;
+  const arg = "yt_" + [...pendingStages].map(([id, i]) => `${id}-${i}`).join("_");
+  try { tg.disableClosingConfirmation(); } catch (e) {}
+  tg.openTelegramLink(`https://t.me/${window.__bot}?start=${arg}`);
+  try { tg.close(); } catch (e) {}
 }
 
 function secYoutube(yt, canEdit) {
@@ -482,25 +521,27 @@ function secYoutube(yt, canEdit) {
       : `<span class="${i === x.si ? "cur" : ""}">${s}</span>`).join("");
     const done = canEdit && x.id != null && x.si === 4
       ? `<button type="button" class="done" data-id="${x.id}" data-i="5">업로드 끝 → 완료</button>` : "";
-    return `<div class="yt" data-title="${esc(x.n)}">
+    return `<div class="yt" data-title="${esc(x.n)}" data-id="${x.id}" data-si="${x.si}">
       <div class="row"><span class="title">${esc(x.n)}${x.sp ? " 💰" : ""}</span><span class="dday pill">${dday(x.l)}</span></div>
       <div class="sub"><span class="badge ${x.c}">${ico} ${lab}</span> · 업로드 ${esc(x.d || "미정")} · 지금 ${esc(x.s)}</div>
       <div class="steps" aria-hidden="true">${steps}</div>
       <div class="steps-label">${labels}</div>${done}
     </div>`;
   }).join("");
-  const hint = canEdit ? '<p class="hint">단계 이름을 누르면 바로 옮겨져요</p>' : "";
+  const hint = canEdit ? '<p class="hint">단계를 누르고 아래 저장을 누르면 한 번에 바뀌어요</p>' : "";
   return `<section><h2>유튜브 · small table</h2>${hint}${rows}</section>`;
 }
 
 function bindStages() {
   document.querySelectorAll(".yt button[data-id]").forEach((b) => {
-    b.addEventListener("click", () => {
-      const i = +b.dataset.i, card = b.closest(".yt");
-      const cur = card.querySelector(".steps-label .cur");
-      if (cur === b) return;   // 이미 그 단계
-      moveStage(+b.dataset.id, card.dataset.title, i);
-    });
+    b.addEventListener("click", () => moveStage(b.closest(".yt"), +b.dataset.i));
+  });
+  const bar = $("#ytsave");
+  bar.querySelector(".save").addEventListener("click", saveStages);
+  bar.querySelector(".undo").addEventListener("click", () => {
+    document.querySelectorAll(".yt[data-id]").forEach((c) => paintStage(c, +c.dataset.si));
+    pendingStages.clear();
+    renderSaveBar();
   });
 }
 
