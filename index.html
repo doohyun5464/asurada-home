@@ -84,6 +84,7 @@
   [data-c=st], [data-j=st]       { --c: #a77bff; }
   [data-c=hl], [data-j=hl]       { --c: #00b24b; }
   [data-c=yt], [data-j=yt]       { --c: #ff4d6d; }
+  [data-c=ls], [data-j=ls]       { --c: #ff6fb5; }
   [data-c=rm]                    { --c: #ff8a3d; }
   [data-c=lg], [data-j=lg]       { --c: #f4b400; }
   [data-c=bk]                    { --c: #7d8597; }
@@ -349,7 +350,7 @@ async function decode(hash) {
 }
 
 function dday(l) {
-  if (l == null) return "";
+  if (l == null) return "미정";
   if (l === 0) return "D-DAY";
   return l > 0 ? `D-${l}` : `D+${-l}`;
 }
@@ -510,9 +511,12 @@ function saveStages() {
   try { tg.close(); } catch (e) {}
 }
 
-function secYoutube(yt, canEdit) {
-  if (yt == null) return '<section><h2>유튜브 · small table</h2><p class="empty">불러오지 못했어요</p></section>';
-  if (!yt.length) return '<section><h2>유튜브 · small table</h2><p class="empty">진행 중인 영상이 없어요</p></section>';
+// ch: 'st' small table / 'ls' 러브솔 (2026-10-25~). 단계 버튼·저장 줄은 두 칸이 같이 쓴다
+function secYoutube(yt, canEdit, ch = "st") {
+  const head = ch === "ls" ? "유튜브 · 러브솔" : "유튜브 · small table";
+  if (yt == null) return `<section><h2>${head}</h2><p class="empty">불러오지 못했어요</p></section>`;
+  yt = yt.filter((x) => (x.ch || "st") === ch);
+  if (!yt.length) return `<section><h2>${head}</h2><p class="empty">진행 중인 영상이 없어요</p></section>`;
   const rows = yt.map((x) => {
     const [ico, lab] = LEVEL[x.c] || LEVEL.g;
     const steps = STAGES.map((_, i) => `<div class="${i <= x.si ? "on" : ""}"></div>`).join("");
@@ -529,7 +533,7 @@ function secYoutube(yt, canEdit) {
     </div>`;
   }).join("");
   const hint = canEdit ? '<p class="hint">단계를 누르고 아래 저장을 누르면 한 번에 바뀌어요</p>' : "";
-  return `<section><h2>유튜브 · small table</h2>${hint}${rows}</section>`;
+  return `<section><h2>${head}</h2>${hint}${rows}</section>`;
 }
 
 function bindStages() {
@@ -695,7 +699,7 @@ function ago(iso) {
 }
 
 // 바로가기 버튼: [칸 id, 버튼 이름]. 칸은 mark() 로 id 를 단다
-const JUMPS = [["today", "오늘"], ["ev", "일정"], ["st", "코디"], ["hl", "건강"], ["yt", "유튜브"], ["lg", "가계부"], ["us", "사용량"]];
+const JUMPS = [["today", "오늘"], ["ev", "일정"], ["st", "코디"], ["hl", "건강"], ["yt", "유튜브"], ["ls", "러브솔"], ["lg", "가계부"], ["us", "사용량"]];
 const mark = (id, html) => html.replace("<section", `<section id="s-${id}" data-c="${id}"`);
 
 function bindJump() {
@@ -742,6 +746,7 @@ async function main() {
   const canEdit = !!(tg && tg.openTelegramLink && d.bot);
   $("#app").innerHTML = mark("today", secToday(d)) + mark("wx", secWeather(d.wx)) + mark("ev", secEvents(d.ev))
     + mark("st", secStyle(d.st, d.wx)) + mark("hl", secHealth(d.hl)) + mark("yt", secYoutube(d.yt, canEdit))
+    + mark("ls", secYoutube(d.yt, canEdit, "ls"))
     + mark("lg", secLedger(d.lg)) + mark("bk", secBackup(d.bk)) + mark("us", secUsage(d.us));
   bindJump();
   if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
