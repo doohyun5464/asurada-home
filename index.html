@@ -85,6 +85,7 @@
   [data-c=hl], [data-j=hl]       { --c: #00b24b; }
   [data-c=yt], [data-j=yt]       { --c: #ff4d6d; }
   [data-c=ls], [data-j=ls]       { --c: #ff6fb5; }
+  [data-c=bb], [data-j=bb]       { --c: #ff8a3d; }
   [data-c=rm]                    { --c: #ff8a3d; }
   [data-c=lg], [data-j=lg]       { --c: #f4b400; }
   [data-c=bk]                    { --c: #7d8597; }
@@ -112,6 +113,11 @@
   /* 유튜브 */
   .yt { padding: 14px 0; border-top: 1px solid var(--line); }
   .yt:first-of-type { border-top: 0; padding-top: 0; }
+  /* 유튜브 칸 안의 채널 묶음 (small table / 러브솔) */
+  .ytgrp + .ytgrp { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .ytgrp h3 { margin: 0 0 10px; font-size: 15px; font-weight: 800; color: var(--c); display: flex; align-items: center; gap: 6px; }
+  .ytgrp h3 .cnt { background: var(--c); color: #fff; border-radius: var(--r-pill); font-size: 11px; padding: 1px 8px; }
+  .ytgrp .empty { font-size: 13px; }
   .yt .row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
   .yt .title { font-weight: 800; color: var(--ink); font-size: 15px; }
   .yt .dday { white-space: nowrap; }
@@ -511,13 +517,24 @@ function saveStages() {
   try { tg.close(); } catch (e) {}
 }
 
-// ch: 'st' small table / 'ls' 러브솔 (2026-10-25~). 단계 버튼·저장 줄은 두 칸이 같이 쓴다
-function secYoutube(yt, canEdit, ch = "st") {
-  const head = ch === "ls" ? "유튜브 · 러브솔" : "유튜브 · small table";
-  if (yt == null) return `<section><h2>${head}</h2><p class="empty">불러오지 못했어요</p></section>`;
-  yt = yt.filter((x) => (x.ch || "st") === ch);
-  if (!yt.length) return `<section><h2>${head}</h2><p class="empty">진행 중인 영상이 없어요</p></section>`;
-  const rows = yt.map((x) => {
+// 유튜브 한 칸 안에 채널 묶음(ch: 'st' small table / 'ls' 러브솔)을 나눠 보여준다 (2026-10-25~)
+// [ch, 이름, 색(data-c)] — 'st' 는 코디 칸 색과 겹쳐서 small table 은 유튜브 빨강을 쓴다
+const YT_CH = [["st", "small table", "yt"], ["ls", "러브솔", "ls"]];
+
+function secYoutube(yt, canEdit) {
+  if (yt == null) return '<section><h2>유튜브</h2><p class="empty">불러오지 못했어요</p></section>';
+  const groups = YT_CH.map(([ch, name, color]) => {
+    const list = yt.filter((x) => (x.ch || "st") === ch);
+    const body = list.length ? ytRows(list, canEdit) : '<p class="empty">진행 중인 영상이 없어요</p>';
+    const cnt = list.length ? `<span class="cnt">${list.length}</span>` : "";
+    return `<div class="ytgrp" data-c="${color}"><h3>${name}${cnt}</h3>${body}</div>`;
+  }).join("");
+  const hint = canEdit && yt.length ? '<p class="hint">단계를 누르고 아래 저장을 누르면 한 번에 바뀌어요</p>' : "";
+  return `<section><h2>유튜브</h2>${hint}${groups}</section>`;
+}
+
+function ytRows(yt, canEdit) {
+  return yt.map((x) => {
     const [ico, lab] = LEVEL[x.c] || LEVEL.g;
     const steps = STAGES.map((_, i) => `<div class="${i <= x.si ? "on" : ""}"></div>`).join("");
     const labels = STAGES.map((s, i) => canEdit && x.id != null
@@ -532,8 +549,13 @@ function secYoutube(yt, canEdit, ch = "st") {
       <div class="steps-label">${labels}</div>${done}
     </div>`;
   }).join("");
-  const hint = canEdit ? '<p class="hint">단계를 누르고 아래 저장을 누르면 한 번에 바뀌어요</p>' : "";
-  return `<section><h2>${head}</h2>${hint}${rows}</section>`;
+}
+
+// 베어빗 (2026-10-25~). 아직 채울 내용이 정해지지 않아 자리만 있다
+function secBearbit(bb) {
+  if (!bb || !bb.length) return '<section><h2>베어빗</h2><p class="empty">곧 채워질 자리예요</p></section>';
+  const rows = bb.map((x) => `<div class="li"><span>${esc(x.t)}</span>${x.a ? `<span class="at">${esc(x.a)}</span>` : ""}</div>`).join("");
+  return `<section><h2>베어빗<span class="cnt">${bb.length}</span></h2>${rows}</section>`;
 }
 
 function bindStages() {
@@ -699,7 +721,7 @@ function ago(iso) {
 }
 
 // 바로가기 버튼: [칸 id, 버튼 이름]. 칸은 mark() 로 id 를 단다
-const JUMPS = [["today", "오늘"], ["ev", "일정"], ["st", "코디"], ["hl", "건강"], ["yt", "유튜브"], ["ls", "러브솔"], ["lg", "가계부"], ["us", "사용량"]];
+const JUMPS = [["today", "오늘"], ["ev", "일정"], ["st", "코디"], ["hl", "건강"], ["bb", "베어빗"], ["yt", "유튜브"], ["lg", "가계부"], ["us", "사용량"]];
 const mark = (id, html) => html.replace("<section", `<section id="s-${id}" data-c="${id}"`);
 
 function bindJump() {
@@ -745,8 +767,8 @@ async function main() {
   window.__bot = d.bot;
   const canEdit = !!(tg && tg.openTelegramLink && d.bot);
   $("#app").innerHTML = mark("today", secToday(d)) + mark("wx", secWeather(d.wx)) + mark("ev", secEvents(d.ev))
-    + mark("st", secStyle(d.st, d.wx)) + mark("hl", secHealth(d.hl)) + mark("yt", secYoutube(d.yt, canEdit))
-    + mark("ls", secYoutube(d.yt, canEdit, "ls"))
+    + mark("st", secStyle(d.st, d.wx)) + mark("hl", secHealth(d.hl))
+    + mark("bb", secBearbit(d.bb)) + mark("yt", secYoutube(d.yt, canEdit))
     + mark("lg", secLedger(d.lg)) + mark("bk", secBackup(d.bk)) + mark("us", secUsage(d.us));
   bindJump();
   if (d.us) bindChart("#chart", "#tip", (i) => { const x = d.us.d[i]; return `${x[0]} · 요청 ${x[1]}건 · $${x[2].toFixed(2)}`; });
