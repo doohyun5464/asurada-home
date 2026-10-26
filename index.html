@@ -551,9 +551,10 @@ function ytRows(yt, canEdit) {
   }).join("");
 }
 
-// 베어빗 (2026-10-25~). 아직 채울 내용이 정해지지 않아 자리만 있다
+// 베어빗 (2026-10-25~). tech@bearbit.co.kr 캘린더 앞으로 7일 일정 (2026-10-26~, 아침 브리핑이 채움)
 function secBearbit(bb) {
-  if (!bb || !bb.length) return '<section><h2>베어빗</h2><p class="empty">곧 채워질 자리예요</p></section>';
+  if (bb == null) return '<section><h2>베어빗</h2><p class="empty">아침 브리핑 때 채워져요</p></section>';
+  if (!bb.length) return '<section><h2>베어빗</h2><p class="empty">일주일 안에 일정이 없어요</p></section>';
   const rows = bb.map((x) => `<div class="li"><span>${esc(x.t)}</span>${x.a ? `<span class="at">${esc(x.a)}</span>` : ""}</div>`).join("");
   return `<section><h2>베어빗<span class="cnt">${bb.length}</span></h2>${rows}</section>`;
 }
