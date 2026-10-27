@@ -285,6 +285,21 @@
   .pop .li b { font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
   .pop .more { color: var(--muted); font-size: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
   .cat .gauge i { background: var(--c); }
+  /* 고정비 / 그때그때 쓴 돈 띠 (2026-10-27) */
+  .split { margin-top: 14px; }
+  .split-bar { display: flex; height: 10px; border-radius: var(--r-pill); overflow: hidden; background: var(--track); }
+  .split-bar i { display: block; height: 100%; }
+  .split-bar i.vr { flex: 1; }
+  .split i.fx { background: #f4b400; } .split i.vr { background: var(--accent); }
+  .split-k { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); margin-top: 7px; flex-wrap: wrap; }
+  .split-k span { display: flex; align-items: center; gap: 5px; }
+  .split-k span i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .split-k b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .hint { text-align: center; color: var(--faint); font-size: 11px; margin-top: 8px; }
+  .lg-out { margin-top: 16px; background: var(--soft); border-radius: var(--r-cell); padding: 10px 12px; font-size: 13px; }
+  .lg-out-h { color: var(--muted); font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .lg-out .li { justify-content: space-between; }
+  .lg-out .li b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
   .ok { color: var(--green); font-weight: 800; } .bad { color: var(--red); font-weight: 800; }
   .ok.pill { background: var(--primary); color: #fff; } .bad.pill { background: var(--red); color: #fff; }
   .foot { text-align: center; color: var(--faint); font-size: 12px; margin-top: 16px; }
@@ -343,7 +358,10 @@ const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":
 const num = (n) => Number(n || 0).toLocaleString("ko-KR");
 // 가계부 분류 비중 색 (큰 순서대로, 마지막 '그 외'는 회색 쪽)
 const RING = ["#f4b400", "#0075ff", "#00b8d9", "#a77bff", "#00b24b", "#ff4d6d", "#ff8a3d", "#7d8597"];
-const ringCol = (c, i) => (c[0] === "그 외" ? "#7d8597" : RING[i % (RING.length - 1)]);
+// 가계부 묶음은 달이 바뀌어도 같은 색 (2026-10-27). 없는 이름만 RING 순서로
+const GROUP_COL = { "식비": "#00b24b", "생활": "#00b8d9", "교육": "#a77bff", "자동차·교통": "#0075ff", "의료": "#ff4d6d",
+  "쇼핑·꾸밈": "#ff6fb5", "여가·여행": "#ff8a3d", "고정비": "#f4b400", "세금": "#b08968", "기타": "#7d8597" };
+const ringCol = (c, i) => GROUP_COL[c[0]] || (c[0] === "그 외" ? "#7d8597" : RING[i % (RING.length - 1)]);
 const STAGES = ["수령", "스크립트", "촬영", "편집", "업로드"];
 const LEVEL = { r: ["🔴", "서둘러야 함"], y: ["🟡", "여유 없음"], g: ["🟢", "여유 있음"] };
 
@@ -582,11 +600,9 @@ function secReminders(rm) {
 
 function secLedger(lg) {
   if (!lg) return '<section><h2>가계부</h2><p class="empty">아직 기록된 지출이 없어요</p></section>';
-  // 분류별 비중 — 큰 도넛 하나 + 분류마다 작은 링 (2026-10-23 사용자 요청)
-  // dashboard 는 상위 6개만 보내므로 나머지는 '그 외'로 묶는다. 환불(음수)은 비중에서 뺀다
+  // 2026-10-27 분류 개편: 묶음 10개(household-ledger/rules/groups.json)를 '그 외' 없이 다 보여준다.
+  // 배치: 지출·건수 → 지난달 비교 → 고정비/그때그때 쓴 돈 띠 → 묶음 도넛·링 → 날짜별 막대 → 지출에서 뺀 돈
   const pos = lg.cat.filter((c) => c[1] > 0);
-  const rest = lg.sum - pos.reduce((a, c) => a + c[1], 0) - lg.cat.filter((c) => c[1] < 0).reduce((a, c) => a + c[1], 0);
-  if (rest > 0) pos.push(["그 외", rest]);
   const tot = Math.max(1, pos.reduce((a, c) => a + c[1], 0));
   let acc = 0;
   const stops = pos.map((c, i) => {
@@ -598,11 +614,22 @@ function secLedger(lg) {
     return `<div class="ring-it" data-cat="${esc(c[0])}"><div class="ring" style="background:conic-gradient(${col} ${p}%, var(--track) 0)"><b>${Math.round(p)}%</b></div>
       <div class="ring-k">${esc(c[0])}</div><div class="ring-v">${num(c[1])}원</div></div>`;
   }).join("");
+  // 범례는 큰 순 5개 + 나머지 한 줄 (전부는 아래 링 칸에 있다)
+  const LEG = 5, legRest = pos.slice(LEG).reduce((a, c) => a + c[1], 0);
+  const legend = pos.slice(0, LEG).map((c, i) => `<div><i style="background:${ringCol(c, i)}"></i><span>${esc(c[0])}</span><b>${Math.round((c[1] / tot) * 100)}%</b></div>`).join("")
+    + (legRest > 0 ? `<div><i style="background:var(--track)"></i><span>나머지 ${pos.length - LEG}개</span><b>${Math.round((legRest / tot) * 100)}%</b></div>` : "");
   const top = pos[0];
   const cats = pos.length ? `<div class="donut-wrap">
       <div class="donut" style="background:conic-gradient(${stops})"><div><b>${Math.round((top[1] / tot) * 100)}%</b><span>${esc(top[0])}</span></div></div>
-      <div class="legend">${pos.map((c, i) => `<div><i style="background:${ringCol(c, i)}"></i><span>${esc(c[0])}</span><b>${Math.round((c[1] / tot) * 100)}%</b></div>`).join("")}</div>
-    </div><div class="rings">${rings}</div>` : "";
+      <div class="legend">${legend}</div>
+    </div><div class="rings">${rings}</div><div class="hint">칸을 꾹 누르면 내역이 보여요</div>` : "";
+  // 매달 그냥 나가는 돈 vs 그때그때 쓴 돈 — 줄일 수 있는 건 오른쪽
+  let split = "";
+  if (lg.fix != null && lg.sum > 0) {
+    const fp = Math.max(0, Math.min(100, (lg.fix / lg.sum) * 100));
+    split = `<div class="split"><div class="split-bar"><i class="fx" style="width:${fp}%"></i><i class="vr"></i></div>
+      <div class="split-k"><span><i class="fx"></i>고정비 <b>${num(lg.fix)}원</b></span><span><i class="vr"></i>그때그때 쓴 돈 <b>${num(lg.sum - lg.fix)}원</b></span></div></div>`;
+  }
   const dd = lg.dd || [];
   let chart = "";
   if (dd.length) {
@@ -610,18 +637,22 @@ function secLedger(lg) {
     const bars = dd.map((v, i) => `<div class="bar${v > 0 ? "" : " zero"}" data-i="${i}" role="img"
         aria-label="${i + 1}일 ${num(v)}원"><i style="height:${(Math.max(0, v) / dmax) * 100}%"></i></div>`).join("");
     chart = `<div class="chart" id="lgchart"><div class="tip" id="lgtip"></div><div class="bars">${bars}</div>
-      <div class="xlab"><span>1일</span><span>날짜별 지출</span><span>오늘</span></div></div>`;
+      <div class="xlab"><span>1일</span><span>날짜별 지출 (고정비 빼고)</span><span>오늘</span></div></div>`;
   }
   let vs = "";
   if (lg.prev) {
-    const diff = Math.round(((lg.sum - lg.prev) / lg.prev) * 100);
+    // 고정비는 빼고 비교 (dashboard prev 가 그때그때 쓴 돈 기준). 예전 주소(fix 없음)는 전체 지출로
+    const cur = lg.fix != null ? lg.sum - lg.fix : lg.sum;
+    const diff = Math.round(((cur - lg.prev) / lg.prev) * 100);
     const word = diff === 0 ? "똑같아요" : diff > 0 ? `<b>${diff}% 더</b> 썼어요` : `<b>${-diff}% 덜</b> 썼어요`;
-    vs = `<div class="vs">${esc(lg.pm)} 같은 기간(${num(lg.prev)}원)보다 ${word}</div>`;
+    vs = `<div class="vs">${lg.fix != null ? "그때그때 쓴 돈은 " : ""}${esc(lg.pm)} 같은 기간(${num(lg.prev)}원)보다 ${word}</div>`;
   }
-  // '○월 식비' 묶음 칸은 사용자 요청으로 뺌 (2026-10-24)
+  // 저축·돌려받을 돈·환불·사업 세금 — 지출 합계에 안 넣고 따로
+  const out = (lg.out || []).length ? `<div class="lg-out"><div class="lg-out-h">지출에서 뺀 돈</div>
+      ${lg.out.map((x) => `<div class="li"><span>${esc(x[0])}</span><b>${num(x[1])}원</b></div>`).join("")}</div>` : "";
   return `<section><h2>가계부 · ${esc(lg.m)}</h2>
     <div class="tiles slim"><div class="tile main"><div class="v won">${num(lg.sum)}<small>원</small></div><div class="k">이번 달 지출</div></div>
-    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${chart}${cats}</section>`;
+    <div class="tile"><div class="v">${num(lg.n)}건</div><div class="k">결제</div></div></div>${vs}${split}${cats}${chart}${out}</section>`;
 }
 
 function secBackup(bk) {
